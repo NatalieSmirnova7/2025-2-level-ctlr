@@ -346,7 +346,7 @@ class HTMLParser:
             texts = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
             self.article.text = '\n\n'.join(texts)
         else:
-            self.article.text = ""
+            self.article.text = "no text"
 
     def _fill_article_with_meta_information(self, article_soup: BeautifulSoup) -> None:
         """
