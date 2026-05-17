@@ -266,6 +266,7 @@ class Crawler:
                     '/archive/', 
                     '/contacts/', 
                     '/users/login/',
+                    '/users/profile/',
                     '/cart/view/'
                 ]
                 if any(link.endswith(pattern) for pattern in skip_patterns):
