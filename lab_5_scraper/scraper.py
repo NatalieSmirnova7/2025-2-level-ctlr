@@ -258,7 +258,16 @@ class Crawler:
                     continue
                 if 'theatreofnations.ru' not in link:
                     continue
-                skip_patterns = ['/events/', '/performances/', '/posts/', '/special_projects/', '/archive/', '/contacts/', '/users/login/']
+                skip_patterns = [
+                    '/events/', 
+                    '/performances/', 
+                    '/posts/', 
+                    '/special_projects/', 
+                    '/archive/', 
+                    '/contacts/', 
+                    '/users/login/',
+                    '/cart/view/'
+                ]
                 if any(link.endswith(pattern) for pattern in skip_patterns):
                     continue
                 try:
