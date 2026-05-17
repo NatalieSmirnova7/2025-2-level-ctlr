@@ -198,6 +198,7 @@ def make_request(url: str, config: Config) -> requests.models.Response:
     print(f"Response status code: {response.status_code}")
     return response
 
+
 class Crawler:
     """
     Crawler implementation.
@@ -255,9 +256,12 @@ class Crawler:
                 link = self._extract_url(tag)
                 if not link or link in self.urls:
                     continue
-                if 'theatreofnations.ru' in link:
-                    if link not in self.urls:
-                        self.urls.append(link)
+                if 'theatreofnations.ru' not in link:
+                    continue
+                skip_patterns = ['/events/', '/performances/', '/posts/', '/special_projects/', '/archive/', '/contacts/', '/users/login/']
+                if any(link.endswith(pattern) for pattern in skip_patterns):
+                    continue
+                self.urls.append(link)
 
     def get_search_urls(self) -> list:
         """
@@ -377,6 +381,8 @@ class HTMLParser:
             article_soup = BeautifulSoup(response.text, features="lxml")
             self._fill_article_with_text(article_soup)
             self._fill_article_with_meta_information(article_soup)
+            if not self.article.text or len(self.article.text.strip()) < 50:
+                return False
             return self.article
         except (requests.RequestException, Exception):
             return False
@@ -406,14 +412,19 @@ def main() -> None:
     prepare_environment(ASSETS_PATH)
     crawler = Crawler(config)
     crawler.find_articles()
+    saved = 0
     for idx, url in enumerate(crawler.urls, 1):
-        if idx > config.get_num_articles():
+        if saved >= config.get_num_articles():
             break
-        parser = HTMLParser(full_url=url, article_id=idx, config=config)
+        parser = HTMLParser(full_url=url, article_id=saved + 1, config=config)
         article = parser.parse()
         if article:
             to_raw(article)
             to_meta(article)
+            saved += 1
+            print(f"Saved article {saved}: {url}")
+    
+    print(f"Total saved: {saved} articles")
 
 if __name__ == "__main__":
     main()
