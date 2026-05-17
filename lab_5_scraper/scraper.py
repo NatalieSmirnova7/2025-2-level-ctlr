@@ -18,6 +18,7 @@ from core_utils.article.io import to_meta, to_raw
 from core_utils.config_dto import ConfigDTO
 from core_utils.constants import ASSETS_PATH, CRAWLER_CONFIG_PATH
 
+
 class IncorrectSeedURLError(Exception):
     """
     Exception raised when seed URL does not match the standard URL pattern.
@@ -196,7 +197,6 @@ def make_request(url: str, config: Config) -> requests.models.Response:
     response.encoding = config.get_encoding()
     print(f"Response status code: {response.status_code}")
     return response
-
 
 class Crawler:
     """
