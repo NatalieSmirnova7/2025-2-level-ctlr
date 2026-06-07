@@ -233,50 +233,63 @@ class Crawler:
             return ""
         if not href:
             return ""
+        if '/posts/' not in href:
+            return ""
+        if '?' in href:
+            return ""
         if href.startswith(('http://', 'https://')):
             return href
-        from urllib.parse import urljoin
         return urljoin("https://www.theatreofnations.ru/", href)
+
 
     def find_articles(self) -> None:
         """
         Find articles.
         """
-        seed_urls = self._config.get_seed_urls()
         number_of_articles = self._config.get_num_articles()
-        for seed_url in seed_urls:
+        seasons = []
+        for seed_url in self._config.get_seed_urls():
+            if '?season=' in seed_url:
+                season = seed_url.split('?season=')[1]
+                seasons.append(season)
+        
+        for season in seasons:
             if len(self.urls) >= number_of_articles:
                 return
-            try:
-                response = make_request(seed_url, self._config)
-            except Exception:
-                continue
-            soup = BeautifulSoup(response.text, features="lxml")
-            for tag in soup.find_all('a', href=True):
-                link = self._extract_url(tag)
-                if not link or link in self.urls:
-                    continue
-                if 'theatreofnations.ru' not in link:
-                    continue
-                skip_patterns = [
-                    '/events/', 
-                    '/performances/', 
-                    '/posts/', 
-                    '/special_projects/', 
-                    '/archive/', 
-                    '/contacts/', 
-                    '/users/login/',
-                    '/users/profile/',
-                    '/cart/view/'
-                ]
-                if any(link.endswith(pattern) for pattern in skip_patterns):
-                    continue
+            
+            page = 1
+            while len(self.urls) < number_of_articles:
                 try:
-                    if not make_request(link, self._config).ok:
-                        continue
-                except Exception:
-                    continue
-                self.urls.append(link)
+                    response = requests.post(
+                        "https://www.theatreofnations.ru/posts/",
+                        params={"season": season},
+                        data={"page": page},
+                        headers=self._config.get_headers(),
+                        timeout=self._config.get_timeout(),
+                        verify=self._config.get_verify_certificate()
+                    )
+                    if not response.ok:
+                        break
+                        
+                    data = response.json()
+                    soup = BeautifulSoup(data["html"], features="lxml")
+                    found_new = False
+                    for tag in soup.find_all('a', href=True):
+                        if len(self.urls) >= number_of_articles:
+                            return
+                        link = self._extract_url(tag)
+                        if link and link not in self.urls:
+                            self.urls.append(link)
+                            print(f"Found: {link} ({len(self.urls)}/{number_of_articles})")
+                            found_new = True
+                    if not data.get("has_next") or not found_new:
+                        break
+                    page += 1
+                except Exception as e:
+                    print(f"Ошибка при запросе сезона {season}, страница {page}: {e}")
+                    break
+
+
 
     def get_search_urls(self) -> list:
         """
@@ -340,13 +353,13 @@ class HTMLParser:
         Args:
             article_soup (bs4.BeautifulSoup): BeautifulSoup instance
         """
-        content_div = article_soup.find('div', class_='content')
-        if content_div:
-            paragraphs = content_div.find_all('p')
-            texts = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
-            self.article.text = '\n\n'.join(texts)
+        content_body = article_soup.find('div', class_='content-body')
+        if content_body:
+            paragraphs = content_body.find_all('p')
+            text = '\n\n'.join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+            self.article.text = text if text else "" 
         else:
-            self.article.text = "no text"
+            self.article.text = "" 
 
     def _fill_article_with_meta_information(self, article_soup: BeautifulSoup) -> None:
         """
@@ -392,13 +405,15 @@ class HTMLParser:
         try:
             response = make_request(self.full_url, self.config)
             if response.status_code != 200:
-                return self.article
+                return False
             article_soup = BeautifulSoup(response.text, features="lxml")
             self._fill_article_with_text(article_soup)
             self._fill_article_with_meta_information(article_soup)
+            if not self.article.text or self.article.text == " ":
+                return False 
             return self.article
         except (requests.RequestException, Exception):
-            return self.article
+            return False
 
 
 def prepare_environment(base_path: pathlib.Path | str) -> None:
@@ -431,11 +446,13 @@ def main() -> None:
             break
         parser = HTMLParser(full_url=url, article_id=saved + 1, config=config)
         article = parser.parse()
-        if article:
+        if article and article.text:
             to_raw(article)
             to_meta(article)
             saved += 1
             print(f"Saved article {saved}: {url}")
+        else:
+            print(f"Skipped article (no text): {url}")
     
     print(f"Total saved: {saved} articles")
 
